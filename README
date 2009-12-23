@@ -1,0 +1,23 @@
+Pew Pew Webserver
+
+Pew Pew Webserver is a lightweight Python web application framework based loosely on
+GetShitDone by Damon Kohler.  Pew Pew apps are self-hosting.
+
+To build an application, create a Python script in your webroot with these basic contents:
+
+import sys
+
+sys.path.append('..')
+import PewPewServer
+
+class MyApp(PewPewServer.App):
+
+    def GET_handler(self, params):
+        pass
+
+if __name__ == '__main__':
+    myApp = MyApp('myappname', 80)
+    myApp.start()
+
+Any call to 'some/remote/uri' is routed to the function GET_some_remote_uri in your MyApp
+class.
