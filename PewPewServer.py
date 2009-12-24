@@ -1,6 +1,9 @@
 import cgi
 import os
+import sys
 import mimetypes
+import StringIO
+import re
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urlparse import urlparse
@@ -24,6 +27,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             if requestType == 'XMLHttpRequest':
                 url = urlparse(self.path)
                 params = dict([part.split('=') for part in url[4].split('&')])
+
+                print params
 
                 requestPath = url[2].replace('/', '_').replace('.', '_')
 
@@ -49,23 +54,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def send_file_response(self, filename):
         extension = filename.split('.')[1]
 
-        def render_page():
-            self.send_headers()
-            self.wfile.write(fileParser.get_file_contents(filename))
-
-        def send_static_file():
-            # Remove query string parameters
-            parsedFilename = urlparse(filename)[2]
-
-            mode = 'r'
-
-            if extension in self.BINARY_FILETYPES:
-                mode = 'rb'
-
-            self.send_headers(value = mimetypes.guess_type(parsedFilename)[0])
-            self.wfile.write(open(parsedFilename.replace('/', os.sep), mode).read())
-
-        return (extension in self.RENDERABLE_FILETYPES) and render_page or send_static_file
+        return (extension in self.RENDERABLE_FILETYPES) and self.render_page or self.send_static_file
 
     def send_headers(self, response = 200, key = 'Content-type', value = 'text/html'):
         self.send_response(response)
@@ -77,6 +66,40 @@ class RequestHandler(BaseHTTPRequestHandler):
         mimetypes.add_type('text/css', '.css')
         mimetypes.add_type('application/x-javascript', '.js')
         mimetypes.add_type('image/png', '.png')
+
+    def render_page(self = None):
+        TEMPLATE_TAGS = re.compile(r'(<%)(.*?)%>', re.DOTALL)
+
+        template = fileParser.get_file_contents(filename)
+
+        sys.stdout = StringIO.StringIO()
+
+        lines = list(reversed(TEMPLATE_TAGS.split(template)))
+
+        while lines:
+            currentLine = lines.pop()
+
+            if currentLine == '<%':
+                exec lines.pop()
+            else:
+                print part
+
+        self.send_headers()
+        self.wfile.write(sys.stdout.getvalue())
+        # Reset stdout
+        sys.stdout = sys.__stdout__
+
+    def send_static_file(self = None):
+        # Remove query string parameters
+        parsedFilename = urlparse(filename)[2]
+
+        mode = 'r'
+
+        if extension in self.BINARY_FILETYPES:
+            mode = 'rb'
+
+        self.send_headers(value = mimetypes.guess_type(parsedFilename)[0])
+        self.wfile.write(open(parsedFilename.replace('/', os.sep), mode).read())
 
 class App(object):
     def __init__(self, name, port):
