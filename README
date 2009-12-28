@@ -3,6 +3,9 @@ Pew Pew Webserver
 Pew Pew Webserver is a lightweight Python web application framework based loosely on
 GetShitDone by Damon Kohler.  Pew Pew apps are self-hosting.
 
+Pew-Pew is built purely on the Python standard library.  It aims to have zero dependencies
+and maximum flexibility.
+
 To build an application, create a Python script in your webroot with these basic contents:
 
 import sys
