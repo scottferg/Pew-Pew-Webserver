@@ -4,6 +4,7 @@ import sys
 import mimetypes
 import StringIO
 import re
+import json
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urlparse import urlparse
@@ -31,10 +32,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             # AJAX requests have a content-type of x-www-form-urlencoded
             if requestType == 'XMLHttpRequest':
                 url = urlparse(self.path)
-                params = dict([part.split('=') for part in url[4].split('&')])
 
-                print params
+                print url
+                # Set params to an empty dictionary if none are provided
+                try:
+                    params = dict([part.split('=') for part in url[4].split('&')])
+                except ValueError:
+                    params = {}
 
+                # Turn some/request/path into some_request_path
                 requestPath = url[2].replace('/', '_').replace('.', '_')
 
                 try:
@@ -42,7 +48,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except AttributeError, e:
                     self.send_error(404, 'Error: %s' % e)
                 else:
-                    get_request(params)
+                    self.send_data_response(get_request(params))
 
             elif self.path:
                 file = (self.path == '/') and 'index.html' or self.path[1:]
@@ -87,6 +93,14 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         return (extension in self.RENDERABLE_FILETYPES) and render_page or send_static_file
 
+    def send_data_response(self, params):
+        """Sends the response provided by the client application
+
+        :param params: Dictionary of parameters to send
+        """
+        self.send_headers(value = 'text/plain')
+        self.wfile.write(json.dumps(params))
+
     def send_headers(self, response = 200, key = 'Content-type', value = 'text/html'):
         """Sends basic headers to the client
 
@@ -119,10 +133,14 @@ class App(object):
         """Returns the request handler for the app"""
         return RequestHandler(self, *args, **kwargs)
 
+    def address(self):
+        """Returns the hostname of the running server"""
+        return self.server.server_name
+
     def start(self):
         """Starts up the application on it's specified port"""
         try:
-            server = HTTPServer(('', self.port), self.Handler)
-            server.serve_forever()
+            self.server = HTTPServer(('', self.port), self.Handler)
+            self.server.serve_forever()
         except KeyboardInterrupt:
-            server.socket.close()
+            self.server.socket.close()
