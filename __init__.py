@@ -11,15 +11,20 @@ from urlparse import urlparse
 import fileParser
 
 class RequestHandler(BaseHTTPRequestHandler):
-    RENDERABLE_FILETYPES = ['htm', 'html', 'php']
+    RENDERABLE_FILETYPES = ['htm', 'html']
     BINARY_FILETYPES = ['jpg', 'jpeg', 'gif', 'png']
 
     def __init__(self, app, *args, **kwargs):
+        """Constructor for a request handler.
+
+        :param app: Application hosting the handler
+        """
         self.app = app
         self.setup_mime_types()
         BaseHTTPRequestHandler.__init__(self, *args, **kwargs)
         
     def do_GET(self):
+        """Response for a GET request"""
         try:
             requestType = self.headers.getheader('X-Requested-With')
 
@@ -40,7 +45,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     get_request(params)
 
             elif self.path:
-                file = (self.path == '/') and 'index.php' or self.path[1:]
+                file = (self.path == '/') and 'index.html' or self.path[1:]
                 
                 self.send_file_response(file)()
         
@@ -49,67 +54,73 @@ class RequestHandler(BaseHTTPRequestHandler):
     
     # TODO: Implement POST
     def do_POST(self):
+        """Response for a POST request"""
         pass
 
     def send_file_response(self, filename):
-        extension = filename.split('.')[1]
+        """Provides the appropriate response based upon the type of
+        file being requested
 
-        return (extension in self.RENDERABLE_FILETYPES) and self.render_page or self.send_static_file
+        :param filename: String representing the relative filename being requested
+
+        Returns a function.
+        """
+        extension = filename.split('.')[1]
+        
+        def render_page():
+            """Renders an HTML page"""
+            self.send_headers()
+            self.wfile.write(fileParser.get_file_contents(filename))
+
+        def send_static_file():
+            """Response which handles non-renderable binary filetypes"""
+            # Remove query string parameters
+            parsedFilename = urlparse(filename)[2]
+
+            mode = 'r'
+
+            if extension in self.BINARY_FILETYPES:
+                mode = 'rb'
+
+            self.send_headers(value = mimetypes.guess_type(parsedFilename)[0])
+            self.wfile.write(open(parsedFilename.replace('/', os.sep), mode).read())
+
+        return (extension in self.RENDERABLE_FILETYPES) and render_page or send_static_file
 
     def send_headers(self, response = 200, key = 'Content-type', value = 'text/html'):
+        """Sends basic headers to the client
+
+        :param response: HTTP response code, defaults to 200
+        :param key: Header key, defaults to 'Content-type'
+        :param value: Header value, defaults to 'text/html'
+        """
         self.send_response(response)
         self.send_header('Transfer-Encoding', 'chunked')
         self.send_header(key, value)
         self.end_headers()
 
     def setup_mime_types(self):
+        """Sets mimetypes for irregular files"""
         mimetypes.add_type('text/css', '.css')
         mimetypes.add_type('application/x-javascript', '.js')
         mimetypes.add_type('image/png', '.png')
 
-    def render_page(self = None):
-        TEMPLATE_TAGS = re.compile(r'(<%)(.*?)%>', re.DOTALL)
-
-        template = fileParser.get_file_contents(filename)
-
-        sys.stdout = StringIO.StringIO()
-
-        lines = list(reversed(TEMPLATE_TAGS.split(template)))
-
-        while lines:
-            currentLine = lines.pop()
-
-            if currentLine == '<%':
-                exec lines.pop()
-            else:
-                print part
-
-        self.send_headers()
-        self.wfile.write(sys.stdout.getvalue())
-        # Reset stdout
-        sys.stdout = sys.__stdout__
-
-    def send_static_file(self = None):
-        # Remove query string parameters
-        parsedFilename = urlparse(filename)[2]
-
-        mode = 'r'
-
-        if extension in self.BINARY_FILETYPES:
-            mode = 'rb'
-
-        self.send_headers(value = mimetypes.guess_type(parsedFilename)[0])
-        self.wfile.write(open(parsedFilename.replace('/', os.sep), mode).read())
-
 class App(object):
     def __init__(self, name, port):
+        """Constructor for an App
+
+        :param name: Name of the application
+        :param port: Port to run the application on
+        """
         self.name = name
         self.port = port
 
     def Handler(self, *args, **kwargs):
+        """Returns the request handler for the app"""
         return RequestHandler(self, *args, **kwargs)
 
     def start(self):
+        """Starts up the application on it's specified port"""
         try:
             server = HTTPServer(('', self.port), self.Handler)
             server.serve_forever()
