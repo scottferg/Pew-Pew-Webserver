@@ -5,6 +5,7 @@ import mimetypes
 import StringIO
 import re
 import json
+import Cookie
 
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from urlparse import urlparse
@@ -33,7 +34,6 @@ class RequestHandler(BaseHTTPRequestHandler):
             if requestType == 'XMLHttpRequest':
                 url = urlparse(self.path)
 
-                print url
                 # Set params to an empty dictionary if none are provided
                 try:
                     params = dict([part.split('=') for part in url[4].split('&')])
@@ -109,8 +109,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         :param value: Header value, defaults to 'text/html'
         """
         self.send_response(response)
-        self.send_header('Transfer-Encoding', 'chunked')
         self.send_header(key, value)
+
+        if self.app.session:
+            sessionID = 'pysessid=' + self.app.session.id
+            self.send_header('Set-Cookie', sessionID)
+    
         self.end_headers()
 
     def setup_mime_types(self):
@@ -120,27 +124,38 @@ class RequestHandler(BaseHTTPRequestHandler):
         mimetypes.add_type('image/png', '.png')
 
 class App(object):
+
     def __init__(self, name, port):
         """Constructor for an App
 
         :param name: Name of the application
         :param port: Port to run the application on
         """
-        self.name = name
-        self.port = port
+        self._name = name
+        self._port = port
+        self._session = None
+
+    @property
+    def session(self):
+        return self._session
+
+    @session.setter
+    def session(self, value):
+        self._session = value
+
+    @property
+    def address(self):
+        """Returns the hostname of the running server"""
+        return self._server.server_name
 
     def Handler(self, *args, **kwargs):
         """Returns the request handler for the app"""
         return RequestHandler(self, *args, **kwargs)
 
-    def address(self):
-        """Returns the hostname of the running server"""
-        return self.server.server_name
-
     def start(self):
         """Starts up the application on it's specified port"""
         try:
-            self.server = HTTPServer(('', self.port), self.Handler)
-            self.server.serve_forever()
+            self._server = HTTPServer(('', self._port), self.Handler)
+            self._server.serve_forever()
         except KeyboardInterrupt:
-            self.server.socket.close()
+            self._server.socket.close()

@@ -4,7 +4,6 @@ import time
 import random
 import pickle
 import os
-from BaseHTTPServer import BaseHTTPRequestHandler
 
 def generate_session_id(hostname):
     """Generate a session ID comprised of the user's hostname, the current time,
@@ -32,32 +31,40 @@ def write_session(id, object):
     Returns nothing."""
     pass
 
-class Session(BaseHTTPRequestHandler, dict):
-    def __init__(self, name = None, *args, **kwargs):
-        self.data = {}
+class Session(object):
+
+    def __init__(self, name = None):
+        self._id = base64.b64encode('%s%s' % (time.localtime(), random.randint(10000000000, 100000000000)))[:32]
 
         if not name:
-            self.name = 'SESSIONID'
+            self._name = 'SESSIONID'
         else:
             # TODO: Should validate the name against invalid characters
-            self.name = name
+            self._name = name
 
-        self.cookie = Cookie.SimpleCookie()
-        self.cookie[self.name] = random.randint(10000000000, 100000000000)
-        BaseHTTPRequestHandler.__init__(self, *args, **kwargs)
+        self._cookie = Cookie.SimpleCookie()
+        self._cookie[self._name] = self._id
 
-    def send_cookie_headers(self):
-        """Sends basic cookie headers to the client"""
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
-        self.end_headers()
+    @property
+    def cookie(self):
+        """Returns the session cookie"""
+        return self._cookie
 
-    def write_cookie_to_client(self):
-        self.send_cookie_headers()
-        self.wfile.write(str(self.cookie[self.name]))
+    @cookie.setter
+    def cookie(self, value):
+        """Sets the cookie"""
+        self._cookie = value
 
-    def __setitem__(self, key, value):
-        self.data[key] = value
+    @property
+    def id(self):
+        """Returns the ID hash for the session"""
+        return self._id
 
-    def __getitem__(self, key):
-        return self.data[key]
+    def __repr__(self):
+        if self._id:
+            return self._id
+        else:
+            return repr(object)
+
+    def __cmp__(self, session):
+        return self._id == session.id
