@@ -40,6 +40,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     params = {}
 
+                # Add the client's hostname to the parameter list
+                params['client'] = self.headers.getheader('Host')
+
                 # Turn some/request/path into some_request_path
                 requestPath = url[2].replace('/', '_').replace('.', '_')
 
